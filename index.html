@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meine Galaxie</title>
+<meta name="theme-color" content="#04050f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Galaxie">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04050f;
+    --void: #080a1a;
+    --star-active: #e8d5a3;
+    --star-paused: #7a9bc4;
+    --star-idea: #b87ac4;
+    --star-glow-active: rgba(232,213,163,0.4);
+    --star-glow-paused: rgba(122,155,196,0.3);
+    --star-glow-idea: rgba(184,122,196,0.35);
+    --panel-bg: rgba(8,10,28,0.97);
+    --text: #d4cfc8;
+    --text-dim: #6b6880;
+    --accent: #e8d5a3;
+    --border: rgba(255,255,255,0.07);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    cursor: default;
+  }
+
+  #canvas-wrap {
+    position: fixed; inset: 0;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+
+  /* TOP BAR */
+  #topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100;
+    background: linear-gradient(to bottom, rgba(4,5,15,0.9) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  #topbar h1 {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.4rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    pointer-events: all;
+  }
+  #topbar-right {
+    display: flex; gap: 10px;
+    pointer-events: all;
+  }
+  .btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 300;
+    padding: 7px 16px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .btn:hover {
+    background: rgba(232,213,163,0.1);
+    border-color: rgba(232,213,163,0.3);
+    color: var(--accent);
+  }
+
+  /* LEGEND */
+  #legend {
+    position: fixed;
+    bottom: 24px; left: 28px;
+    display: flex; gap: 18px;
+    z-index: 100;
+    opacity: 0.6;
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .leg { display: flex; align-items: center; gap: 6px; }
+  .leg-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+  }
+
+  /* PANEL */
+  #panel {
+    position: fixed;
+    top: 0; right: -420px;
+    width: 400px;
+    height: 100vh;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--border);
+    z-index: 200;
+    transition: right 0.4s cubic-bezier(0.16,1,0.3,1);
+    overflow-y: auto;
+    padding: 32px 28px;
+    backdrop-filter: blur(20px);
+  }
+  #panel.open { right: 0; }
+
+  #panel-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s;
+  }
+  #panel-close:hover { color: var(--text); }
+
+  #panel h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem;
+    font-style: italic;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    color: #fff;
+    line-height: 1.2;
+  }
+
+  #panel-desc {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    margin-bottom: 20px;
+    min-height: 20px;
+  }
+
+  .panel-section-title {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    margin-top: 22px;
+  }
+
+  /* STATUS PILLS */
+  .status-row {
+    display: flex; gap: 8px; margin-bottom: 20px;
+  }
+  .status-pill {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 2px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0.4;
+  }
+  .status-pill.active-pill { opacity: 1; }
+  .pill-active { border-color: var(--star-active); color: var(--star-active); }
+  .pill-active.active-pill { background: rgba(232,213,163,0.12); }
+  .pill-paused { border-color: var(--star-paused); color: var(--star-paused); }
+  .pill-paused.active-pill { background: rgba(122,155,196,0.12); }
+  .pill-idea { border-color: var(--star-idea); color: var(--star-idea); }
+  .pill-idea.active-pill { background: rgba(184,122,196,0.12); }
+
+  /* TASKS */
+  #tasks-list { list-style: none; margin-bottom: 10px; }
+  #tasks-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  #tasks-list li:last-child { border-bottom: none; }
+  .task-check {
+    width: 14px; height: 14px;
+    border: 1px solid var(--text-dim);
+    border-radius: 1px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+  .task-check.done {
+    background: rgba(232,213,163,0.2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .task-text { flex: 1; cursor: default; }
+  .task-text.done-text { text-decoration: line-through; color: var(--text-dim); }
+  .task-del {
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #tasks-list li:hover .task-del { opacity: 1; }
+
+  .add-row {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .add-input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    padding: 8px 12px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .add-input:focus { border-color: rgba(232,213,163,0.3); }
+  .add-input::placeholder { color: var(--text-dim); }
+  .add-btn {
+    background: rgba(232,213,163,0.1);
+    border: 1px solid rgba(232,213,163,0.2);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .add-btn:hover { background: rgba(232,213,163,0.18); }
+
+  /* EDIT inline */
+  .edit-field {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    width: 100%;
+    outline: none;
+    padding: 2px 0;
+    resize: none;
+  }
+  #edit-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.6rem;
+    font-style: italic;
+    color: #fff;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(232,213,163,0.2);
+    width: 100%;
+    outline: none;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    padding: 2px 0;
+  }
+  #edit-desc {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.7;
+    width: 100%;
+    outline: none;
+    padding: 8px;
+    border-radius: 2px;
+    resize: vertical;
+    min-height: 60px;
+    margin-bottom: 20px;
+  }
+  #edit-desc:focus, #edit-title:focus {
+    border-color: rgba(232,213,163,0.25);
+  }
+
+  /* NEW PROJECT MODAL */
+  #modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(4,5,15,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    width: 460px;
+    max-width: 94vw;
+    padding: 36px 32px;
+    border-radius: 2px;
+    animation: modalIn 0.35s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+  #modal h3 {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.4rem;
+    margin-bottom: 22px;
+    color: var(--accent);
+  }
+  .modal-field { margin-bottom: 16px; }
+  .modal-label {
+    display: block;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .modal-input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    padding: 10px 14px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .modal-input:focus { border-color: rgba(232,213,163,0.3); }
+  .modal-input::placeholder { color: var(--text-dim); }
+  .modal-status-row { display: flex; gap: 8px; margin-top: 4px; }
+  .modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px;
+  }
+  .btn-primary {
+    background: rgba(232,213,163,0.15);
+    border: 1px solid rgba(232,213,163,0.4);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    padding: 9px 20px;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover { background: rgba(232,213,163,0.25); }
+
+  /* SPOTLIGHT */
+  #spotlight {
+    position: fixed;
+    bottom: 30px; right: 30px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(232,213,163,0.2);
+    padding: 16px 20px;
+    max-width: 280px;
+    z-index: 150;
+    border-radius: 2px;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+    pointer-events: none;
+  }
+  #spotlight.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #spotlight-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--star-active);
+    margin-bottom: 6px;
+  }
+  #spotlight-name {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  #spotlight-sub {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* DELETE BTN in panel */
+  #delete-project-btn {
+    margin-top: 32px;
+    background: none;
+    border: 1px solid rgba(200,80,80,0.2);
+    color: rgba(200,80,80,0.5);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    width: 100%;
+  }
+  #delete-project-btn:hover {
+    background: rgba(200,80,80,0.08);
+    color: rgba(200,80,80,0.8);
+    border-color: rgba(200,80,80,0.4);
+  }
+
+  /* HINT */
+  #hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%; transform: translateX(-50%);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s;
+  }
+  #hint.show { opacity: 1; }
+
+  /* LIST DRAWER */
+  #list-drawer {
+    position: fixed;
+    top: 0; left: -480px;
+    width: 460px;
+    height: 100vh;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    z-index: 200;
+    transition: left 0.4s cubic-bezier(0.16,1,0.3,1);
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(20px);
+  }
+  #list-drawer.open { left: 0; }
+
+  #list-drawer-header {
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #list-drawer-header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  #list-drawer-header h2 {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.3rem;
+    color: var(--accent);
+  }
+  #list-close {
+    background: none; border: none;
+    color: var(--text-dim); font-size: 1.1rem;
+    cursor: pointer; padding: 4px 8px;
+    transition: color 0.2s;
+  }
+  #list-close:hover { color: var(--text); }
+
+  #search-wrap {
+    position: relative;
+  }
+  #search-input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 9px 12px 9px 32px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #search-input:focus { border-color: rgba(232,213,163,0.3); }
+  #search-input::placeholder { color: var(--text-dim); }
+  #search-icon {
+    position: absolute; left: 10px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim); font-size: 0.75rem;
+    pointer-events: none;
+  }
+
+  #list-filter-row {
+    display: flex; gap: 6px; margin-top: 10px;
+  }
+  .filter-chip {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: none;
+    font-family: 'DM Mono', monospace;
+  }
+  .filter-chip.on { color: var(--accent); border-color: rgba(232,213,163,0.35); background: rgba(232,213,163,0.07); }
+  .filter-chip.chip-active.on { color: var(--star-active); border-color: rgba(232,213,163,0.4); background: rgba(232,213,163,0.08); }
+  .filter-chip.chip-paused.on { color: var(--star-paused); border-color: rgba(122,155,196,0.4); background: rgba(122,155,196,0.08); }
+  .filter-chip.chip-idea.on { color: var(--star-idea); border-color: rgba(184,122,196,0.4); background: rgba(184,122,196,0.08); }
+
+  #list-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  #list-body::-webkit-scrollbar { width: 4px; }
+  #list-body::-webkit-scrollbar-track { background: transparent; }
+  #list-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .list-item:hover { background: rgba(255,255,255,0.03); }
+  .list-item.selected-item { background: rgba(232,213,163,0.05); }
+
+  .list-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .list-item-info { flex: 1; min-width: 0; }
+  .list-item-name {
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .list-item-meta {
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .list-item-del {
+    background: none; border: none;
+    color: rgba(200,80,80,0.3);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    opacity: 0;
+    transition: all 0.2s;
+    border-radius: 2px;
+  }
+  .list-item:hover .list-item-del { opacity: 1; }
+  .list-item-del:hover { color: rgba(200,80,80,0.8) !important; background: rgba(200,80,80,0.08); }
+
+  #list-footer {
+    padding: 14px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 0.63rem;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+  #list-empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    font-style: italic;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap">
+  <canvas id="galaxy"></canvas>
+</div>
+
+<div id="topbar">
+  <h1>✦ meine galaxie</h1>
+  <div id="topbar-right">
+    <button class="btn" onclick="showRandom()">↻ überrasch mich</button>
+    <button class="btn" onclick="openListDrawer()">☰ liste</button>
+    <button class="btn" onclick="applyZoom(zoom*1.3,W/2,H/2)">+</button>
+    <button class="btn" onclick="applyZoom(zoom*0.7,W/2,H/2)">−</button>
+    <button class="btn" onclick="resetView()" title="Übersicht">⊙</button>
+    <button class="btn" onclick="exportData()" title="JSON exportieren">↓ export</button>
+    <button class="btn" onclick="document.getElementById('import-input').click()" title="JSON importieren">↑ import</button>
+    <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+    <button class="btn" onclick="openModal()">+ projekt</button>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="leg-dot" style="background:var(--star-active)"></div>aktiv</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--star-paused)"></div>pausiert</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--star-idea)"></div>idee</div>
+</div>
+
+<div id="hint">ziehen zum navigieren · klick zum öffnen</div>
+
+<!-- PANEL -->
+<div id="panel">
+  <button id="panel-close" onclick="closePanel()">✕</button>
+  <div id="panel-content"></div>
+</div>
+
+<!-- SPOTLIGHT -->
+<div id="spotlight">
+  <div id="spotlight-label">✦ heute mal wieder</div>
+  <div id="spotlight-name"></div>
+  <div id="spotlight-sub"></div>
+</div>
+
+<!-- LIST DRAWER -->
+<div id="list-drawer">
+  <div id="list-drawer-header">
+    <div id="list-drawer-header-top">
+      <h2>alle projekte</h2>
+      <button id="list-close" onclick="closeListDrawer()">✕</button>
+    </div>
+    <div id="search-wrap">
+      <span id="search-icon">⌕</span>
+      <input id="search-input" placeholder="suchen..." oninput="renderList()" autocomplete="off">
+    </div>
+    <div id="list-filter-row">
+      <button class="filter-chip on" data-f="all" onclick="setFilter(this,'all')">alle</button>
+      <button class="filter-chip chip-active" data-f="active" onclick="setFilter(this,'active')">aktiv</button>
+      <button class="filter-chip chip-paused" data-f="paused" onclick="setFilter(this,'paused')">pausiert</button>
+      <button class="filter-chip chip-idea" data-f="idea" onclick="setFilter(this,'idea')">ideen</button>
+    </div>
+  </div>
+  <div id="list-body">
+    <div id="list-empty">keine projekte gefunden</div>
+  </div>
+  <div id="list-footer" id="list-count"></div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <h3>neues projekt</h3>
+    <div class="modal-field">
+      <label class="modal-label">Name</label>
+      <input class="modal-input" id="new-name" placeholder="worum gehts?" autocomplete="off">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Beschreibung (optional)</label>
+      <textarea class="modal-input" id="new-desc" rows="2" placeholder="kurze notiz..."></textarea>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Status</label>
+      <div class="modal-status-row">
+        <button class="status-pill pill-active active-pill" data-s="active" onclick="selectStatus(this,'active')">aktiv</button>
+        <button class="status-pill pill-paused" data-s="paused" onclick="selectStatus(this,'paused')">pausiert</button>
+        <button class="status-pill pill-idea" data-s="idea" onclick="selectStatus(this,'idea')">idee</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">abbrechen</button>
+      <button class="btn-primary" onclick="addProject()">ins universum ✦</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const STORE_KEY = 'galaxie_v3';
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return {
+    projects: [
+      { id: uid(), name: 'DIY Regal', desc: 'Schwebendes Regal für das Wohnzimmer bauen', status: 'active', tasks: [{t:'Material kaufen',done:false},{t:'Maße nehmen',done:true},{t:'Schleifen & lackieren',done:false}], x: null, y: null },
+      { id: uid(), name: 'Sourdough meistern', desc: 'Endlich einen stabilen Starter pflegen', status: 'active', tasks: [{t:'Starter ansetzen',done:true},{t:'3 Laibe backen',done:false}], x: null, y: null },
+      { id: uid(), name: 'Aquarell lernen', desc: 'Mal schauen was das wird', status: 'idea', tasks: [{t:'Farben + Pinsel kaufen',done:false}], x: null, y: null },
+      { id: uid(), name: 'Kompost anlegen', desc: 'Im Hinterhof oder auf dem Balkon?', status: 'paused', tasks: [{t:'Info über Wurmkiste',done:false},{t:'Platz klären',done:false}], x: null, y: null },
+      { id: uid(), name: 'Kachelofen reparieren', desc: '', status: 'paused', tasks: [], x: null, y: null },
+      { id: uid(), name: 'Fermentieren', desc: 'Kimchi, Kombucha, Kefir — alles', status: 'idea', tasks: [{t:'Kimchi Rezept testen',done:false},{t:'SCOBY besorgen',done:false}], x: null, y: null },
+    ],
+    offset: { x: 0, y: 0 }
+  };
+}
+
+function saveData() {
+  data.offset = { x: offsetX, y: offsetY, zoom };
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+function uid() { return Math.random().toString(36).slice(2,10); }
+
+let data = loadData();
+let projects = data.projects;
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('galaxy');
+const ctx = canvas.getContext('2d');
+let W, H;
+let offsetX = data.offset?.x || 0;
+let offsetY = data.offset?.y || 0;
+let zoom = data.offset?.zoom || 1;
+const ZOOM_MIN = 0.15;
+const ZOOM_MAX = 2.5;
+let dragging = false, lastX, lastY;
+let stars = [];
+let selectedId = null;
+let animFrame;
+let time = 0;
+let DPR = 1;
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  generateStars();
+  placeProjects();
+}
+
+function generateStars() {
+  stars = [];
+  const count = Math.floor((W * H) / 4000);
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: Math.random() * W * 3 - W,
+      y: Math.random() * H * 3 - H,
+      r: Math.random() * 1.2 + 0.2,
+      a: Math.random() * 0.5 + 0.1,
+      twinkle: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function placeProjects() {
+  const cx = W / 2, cy = H / 2;
+  projects.forEach((p, i) => {
+    if (p.x === null) {
+      const angle = i * 2.4;
+      const radius = 50 + i * 28 + Math.random() * 15;
+      p.x = cx + Math.cos(angle) * radius - offsetX;
+      p.y = cy + Math.sin(angle) * radius - offsetY;
+    }
+  });
+  saveData();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+const STATUS_COLORS = {
+  active: '#e8d5a3',
+  paused: '#7a9bc4',
+  idea: '#b87ac4'
+};
+const STATUS_GLOWS = {
+  active: 'rgba(232,213,163,',
+  paused: 'rgba(122,155,196,',
+  idea: 'rgba(184,122,196,'
+};
+
+function draw() {
+  animFrame = requestAnimationFrame(draw);
+  time += 0.012;
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // Deep space bg
+  const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.8);
+  bg.addColorStop(0, '#08091c');
+  bg.addColorStop(1, '#04050f');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoom, zoom);
+
+  // Background stars (static dots, unaffected by project zoom logic)
+  stars.forEach(s => {
+    const twinkle = 0.6 + 0.4 * Math.sin(time * 0.8 + s.twinkle);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(220,215,255,${s.a * twinkle})`;
+    ctx.fill();
+  });
+
+  // Nebula wisps
+  for (let i = 0; i < 3; i++) {
+    const nx = W * (0.2 + i * 0.3);
+    const ny = H * (0.3 + Math.sin(i * 2.1) * 0.2);
+    const gr = ctx.createRadialGradient(nx, ny, 0, nx, ny, 200 + i*80);
+    const alpha = 0.018 + 0.005 * Math.sin(time * 0.3 + i);
+    gr.addColorStop(0, `rgba(${i===0?'100,80,180':i===1?'60,120,160':'140,80,120'},${alpha})`);
+    gr.addColorStop(1, 'transparent');
+    ctx.fillStyle = gr;
+    ctx.fillRect(nx-300, ny-300, 600, 600);
+  }
+
+  // Connection lines
+  projects.forEach((p, i) => {
+    projects.forEach((q, j) => {
+      if (j <= i || p.status !== 'active' || q.status !== 'active') return;
+      const dx = p.x - q.x, dy = p.y - q.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (dist < 220) {
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(q.x, q.y);
+        ctx.strokeStyle = `rgba(232,213,163,${0.04 * (1 - dist/220)})`;
+        ctx.lineWidth = 0.5 / zoom;
+        ctx.stroke();
+      }
+    });
+  });
+
+  // Draw each project
+  projects.forEach(p => {
+    const isSelected = p.id === selectedId;
+    const taskCount = p.tasks.length;
+    const color = STATUS_COLORS[p.status];
+    const glowBase = STATUS_GLOWS[p.status];
+
+    // Star size: fixed in screen pixels regardless of zoom
+    // We're inside zoom transform, so divide by zoom to get world units
+    const pulse = isSelected ? 1 + 0.1 * Math.sin(time * 2) : 1 + 0.03 * Math.sin(time * 0.7 + p.x * 0.01);
+    const screenR = (7 + taskCount * 1.2) * pulse; // size in screen px
+    const r = screenR / zoom; // convert to world units
+
+    // Glow
+    const glowScreenR = screenR * (isSelected ? 4 : 2.8);
+    const glowR = glowScreenR / zoom;
+    const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+    glow.addColorStop(0, `${glowBase}${isSelected ? 0.5 : 0.22})`);
+    glow.addColorStop(0.5, `${glowBase}0.06)`);
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, glowR, 0, Math.PI*2);
+    ctx.fill();
+
+    // 4-spike star shape
+    ctx.save();
+    ctx.globalAlpha = isSelected ? 1 : 0.88;
+    ctx.beginPath();
+    const spikes = 4;
+    const innerR = r * 0.22;
+    const minorR = r * 0.52;
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI / spikes) - Math.PI / 4;
+      const rad = i % 2 === 0 ? r : (i % 4 === 1 ? minorR : innerR);
+      const x = p.x + Math.cos(angle) * rad;
+      const y = p.y + Math.sin(angle) * rad;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.3, color);
+    grad.addColorStop(1, color + 'aa');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+
+    // ── Text: constant screen size, fades out when zoomed far out ──
+    // textOpacity: 0 below zoom 0.2, full at zoom 0.4+
+    const textOpacity = Math.min(1, Math.max(0, (zoom - 0.2) / 0.2)) * (isSelected ? 1 : 0.72);
+    if (textOpacity > 0) {
+      // Fixed screen size = 10px → world size = 10/zoom
+      const ts = 10 / zoom;
+      ctx.save();
+      ctx.globalAlpha = textOpacity;
+      ctx.font = `300 ${ts}px 'DM Mono', monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#d4cfc8';
+      ctx.fillText(p.name, p.x, p.y + r + ts * 1.4);
+      ctx.restore();
+    }
+
+    // ── Details: fade in only when zoomed in (zoom > 0.8) ──
+    const detailOpacity = Math.min(1, Math.max(0, (zoom - 0.8) / 0.3));
+    if (detailOpacity > 0 && (p.desc || taskCount > 0)) {
+      const ts = 10 / zoom;
+      const ds = 8 / zoom;
+      let lineY = p.y + r + ts * 1.4 + ds * 2;
+      ctx.save();
+      ctx.textAlign = 'center';
+      if (p.desc) {
+        const short = p.desc.length > 30 ? p.desc.slice(0, 29) + '…' : p.desc;
+        ctx.globalAlpha = detailOpacity * 0.45;
+        ctx.font = `300 ${ds}px 'DM Mono', monospace`;
+        ctx.fillStyle = '#a09aa8';
+        ctx.fillText(short, p.x, lineY);
+        lineY += ds * 1.7;
+      }
+      p.tasks.slice(0, 3).forEach(t => {
+        ctx.globalAlpha = detailOpacity * (t.done ? 0.25 : 0.45);
+        ctx.font = `300 ${ds}px 'DM Mono', monospace`;
+        ctx.fillStyle = '#a09aa8';
+        ctx.fillText((t.done ? '✓ ' : '· ') + t.t.slice(0, 24), p.x, lineY);
+        lineY += ds * 1.5;
+      });
+      if (taskCount > 3) {
+        ctx.globalAlpha = detailOpacity * 0.25;
+        ctx.fillText(`+${taskCount - 3} mehr`, p.x, lineY);
+      }
+      ctx.restore();
+    }
+  });
+
+  ctx.restore();
+}
+
+// ─── INTERACTION ─────────────────────────────────────────────────────────────
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - offsetX) / zoom,
+    y: (sy - offsetY) / zoom
+  };
+}
+
+function getProjectAt(cx, cy) {
+  const w = screenToWorld(cx, cy);
+  for (let p of projects) {
+    const dist = Math.sqrt((w.x - p.x)**2 + (w.y - p.y)**2);
+    const hitR = (3 + p.tasks.length * 1.1 + 2) * 2.5 + 12 / zoom;
+    if (dist < hitR) return p;
+  }
+  return null;
+}
+
+function applyZoom(newZoom, pivotX, pivotY) {
+  newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+  // Keep pivot point stationary
+  offsetX = pivotX - (pivotX - offsetX) * (newZoom / zoom);
+  offsetY = pivotY - (pivotY - offsetY) * (newZoom / zoom);
+  zoom = newZoom;
+}
+
+canvas.addEventListener('mousedown', e => {
+  dragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  offsetX += e.clientX - lastX;
+  offsetY += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+});
+
+canvas.addEventListener('mouseup', e => {
+  const moved = Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+  dragging = false;
+  if (moved < 4) {
+    const p = getProjectAt(e.clientX, e.clientY);
+    if (p) openPanel(p.id);
+    else closePanel();
+  }
+  saveData();
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  applyZoom(zoom * delta, e.clientX, e.clientY);
+}, { passive: false });
+
+// Touch handling — single finger pan, two finger pinch zoom
+let touch1 = null, touch2 = null, lastPinchDist = null;
+let touchStartX, touchStartY, touchMoved = false;
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    touch1 = e.touches[0];
+    lastX = touch1.clientX;
+    lastY = touch1.clientY;
+    touchStartX = touch1.clientX;
+    touchStartY = touch1.clientY;
+    touchMoved = false;
+    dragging = true;
+  } else if (e.touches.length === 2) {
+    dragging = false;
+    touch1 = e.touches[0];
+    touch2 = e.touches[1];
+    lastPinchDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && dragging) {
+    const dx = e.touches[0].clientX - lastX;
+    const dy = e.touches[0].clientY - lastY;
+    offsetX += dx; offsetY += dy;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    if (Math.abs(e.touches[0].clientX - touchStartX) > 5 ||
+        Math.abs(e.touches[0].clientY - touchStartY) > 5) touchMoved = true;
+  } else if (e.touches.length === 2) {
+    const t1 = e.touches[0], t2 = e.touches[1];
+    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    if (lastPinchDist) {
+      const pivotX = (t1.clientX + t2.clientX) / 2;
+      const pivotY = (t1.clientY + t2.clientY) / 2;
+      applyZoom(zoom * (dist / lastPinchDist), pivotX, pivotY);
+    }
+    lastPinchDist = dist;
+    touchMoved = true;
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  if (e.touches.length === 0 && !touchMoved) {
+    const p = getProjectAt(lastX, lastY);
+    if (p) openPanel(p.id);
+    else closePanel();
+  }
+  if (e.touches.length < 2) lastPinchDist = null;
+  if (e.touches.length === 0) { dragging = false; saveData(); }
+});
+
+// ─── PANEL ───────────────────────────────────────────────────────────────────
+let currentProject = null;
+
+function openPanel(id) {
+  currentProject = projects.find(p => p.id === id);
+  if (!currentProject) return;
+  selectedId = id;
+  renderPanel();
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('panel').classList.remove('open');
+  selectedId = null;
+  currentProject = null;
+}
+
+function renderPanel() {
+  const p = currentProject;
+  if (!p) return;
+  const color = STATUS_COLORS[p.status];
+
+  const taskItems = p.tasks.map((t, i) => `
+    <li>
+      <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask(${i})">
+        ${t.done ? '✓' : ''}
+      </div>
+      <span class="task-text ${t.done ? 'done-text' : ''}">${escHtml(t.t)}</span>
+      <span class="task-del" onclick="deleteTask(${i})">✕</span>
+    </li>
+  `).join('');
+
+  document.getElementById('panel-content').innerHTML = `
+    <input id="edit-title" value="${escHtml(p.name)}" oninput="updateField('name',this.value)">
+    <textarea id="edit-desc" oninput="updateField('desc',this.value)" placeholder="notizen...">${escHtml(p.desc||'')}</textarea>
+
+    <div class="panel-section-title">Status</div>
+    <div class="status-row">
+      <button class="status-pill pill-active ${p.status==='active'?'active-pill':''}" onclick="setStatus('active')">aktiv</button>
+      <button class="status-pill pill-paused ${p.status==='paused'?'active-pill':''}" onclick="setStatus('paused')">pausiert</button>
+      <button class="status-pill pill-idea ${p.status==='idea'?'active-pill':''}" onclick="setStatus('idea')">idee</button>
+    </div>
+
+    <div class="panel-section-title">Ideen & Aufgaben</div>
+    <ul id="tasks-list">${taskItems}</ul>
+    <div class="add-row">
+      <input class="add-input" id="task-input" placeholder="neue aufgabe / idee..." 
+             onkeydown="if(event.key==='Enter')addTask()">
+      <button class="add-btn" onclick="addTask()">+</button>
+    </div>
+
+    <button id="delete-project-btn" onclick="deleteProject()">projekt löschen</button>
+  `;
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateField(field, val) {
+  if (!currentProject) return;
+  currentProject[field] = val;
+  saveData();
+}
+
+function setStatus(s) {
+  if (!currentProject) return;
+  currentProject.status = s;
+  saveData();
+  renderPanel();
+}
+
+function toggleTask(i) {
+  if (!currentProject) return;
+  currentProject.tasks[i].done = !currentProject.tasks[i].done;
+  saveData();
+  renderPanel();
+}
+
+function deleteTask(i) {
+  if (!currentProject) return;
+  currentProject.tasks.splice(i, 1);
+  saveData();
+  renderPanel();
+}
+
+function addTask() {
+  const input = document.getElementById('task-input');
+  const val = input.value.trim();
+  if (!val || !currentProject) return;
+  currentProject.tasks.push({ t: val, done: false });
+  input.value = '';
+  saveData();
+  renderPanel();
+  document.getElementById('task-input').focus();
+}
+
+function deleteProject() {
+  if (!currentProject) return;
+  if (!confirm(`"${currentProject.name}" wirklich löschen?`)) return;
+  projects = projects.filter(p => p.id !== currentProject.id);
+  data.projects = projects;
+  saveData();
+  closePanel();
+}
+
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+let newStatus = 'active';
+
+function openModal() {
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-desc').value = '';
+  newStatus = 'active';
+  document.querySelectorAll('.modal-status-row .status-pill').forEach(b => {
+    b.classList.toggle('active-pill', b.dataset.s === 'active');
+  });
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('new-name').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function selectStatus(btn, s) {
+  newStatus = s;
+  document.querySelectorAll('.modal-status-row .status-pill').forEach(b => {
+    b.classList.toggle('active-pill', b.dataset.s === s);
+  });
+}
+
+function addProject() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { document.getElementById('new-name').focus(); return; }
+  const desc = document.getElementById('new-desc').value.trim();
+  const p = {
+    id: uid(), name, desc, status: newStatus, tasks: [],
+    x: W/2 - offsetX + (Math.random()-0.5)*120,
+    y: H/2 - offsetY + (Math.random()-0.5)*120
+  };
+  projects.push(p);
+  data.projects = projects;
+  saveData();
+  closeModal();
+  setTimeout(() => openPanel(p.id), 200);
+}
+
+// ─── RANDOM SPOTLIGHT ────────────────────────────────────────────────────────
+function showRandom() {
+  if (!projects.length) return;
+  const p = projects[Math.floor(Math.random() * projects.length)];
+  const donePct = p.tasks.length ? Math.round(p.tasks.filter(t=>t.done).length/p.tasks.length*100) : null;
+  const subText = p.tasks.length
+    ? `${p.tasks.length} aufgaben · ${donePct}% erledigt`
+    : p.desc || 'noch keine aufgaben';
+
+  document.getElementById('spotlight-name').textContent = p.name;
+  document.getElementById('spotlight-sub').textContent = subText;
+
+  const spot = document.getElementById('spotlight');
+  spot.classList.add('show');
+  spot.style.pointerEvents = 'all';
+  spot.style.cursor = 'pointer';
+  spot.onclick = () => { openPanel(p.id); spot.classList.remove('show'); spot.style.pointerEvents='none'; };
+
+  // Fly to project
+  offsetX = W/2 - p.x;
+  offsetY = H/2 - p.y;
+
+  setTimeout(() => { spot.classList.remove('show'); spot.style.pointerEvents='none'; }, 5000);
+}
+
+// Auto spotlight on load
+setTimeout(() => {
+  if (projects.length) showRandom();
+}, 1200);
+
+// Show hint briefly
+setTimeout(() => {
+  const h = document.getElementById('hint');
+  h.classList.add('show');
+  setTimeout(() => h.classList.remove('show'), 3000);
+}, 2200);
+
+function resetView() {
+  if (!projects.length) return;
+  // Find bounding box of all projects
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  projects.forEach(p => {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  });
+  const pad = 80;
+  const bw = maxX - minX + pad * 2;
+  const bh = maxY - minY + pad * 2;
+  const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(W / bw, H / bh)));
+  zoom = newZoom;
+  offsetX = W / 2 - (minX + maxX) / 2 * zoom;
+  offsetY = H / 2 - (minY + maxY) / 2 * zoom;
+  saveData();
+}
+
+// ─── EXPORT / IMPORT ─────────────────────────────────────────────────────────
+function exportData() {
+  const payload = JSON.stringify({ projects, offset: { x: offsetX, y: offsetY } }, null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `galaxie-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (!parsed.projects || !Array.isArray(parsed.projects)) throw new Error();
+      if (!confirm(`${parsed.projects.length} Projekte importieren? Aktuelle Daten werden ersetzt.`)) return;
+      projects = parsed.projects;
+      data.projects = projects;
+      if (parsed.offset) { offsetX = parsed.offset.x; offsetY = parsed.offset.y; }
+      saveData();
+      closePanel();
+      renderList();
+      showToast('Import erfolgreich ✦');
+    } catch {
+      showToast('Fehler: ungültige Datei');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = `position:fixed;bottom:60px;left:50%;transform:translateX(-50%);
+      background:rgba(8,10,28,0.95);border:1px solid rgba(232,213,163,0.25);
+      color:var(--accent);font-family:'DM Mono',monospace;font-size:0.7rem;
+      padding:10px 20px;border-radius:2px;z-index:999;letter-spacing:0.06em;
+      transition:opacity 0.4s;pointer-events:none;`;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.opacity = '0', 2500);
+}
+
+// ─── LIST DRAWER ─────────────────────────────────────────────────────────────
+let listFilter = 'all';
+
+function openListDrawer() {
+  renderList();
+  document.getElementById('list-drawer').classList.add('open');
+  setTimeout(() => document.getElementById('search-input').focus(), 300);
+}
+
+function closeListDrawer() {
+  document.getElementById('list-drawer').classList.remove('open');
+}
+
+function setFilter(btn, f) {
+  listFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderList();
+}
+
+function renderList() {
+  const query = (document.getElementById('search-input').value || '').toLowerCase();
+  let filtered = projects.filter(p => {
+    const matchFilter = listFilter === 'all' || p.status === listFilter;
+    const matchSearch = !query ||
+      p.name.toLowerCase().includes(query) ||
+      (p.desc || '').toLowerCase().includes(query) ||
+      p.tasks.some(t => t.t.toLowerCase().includes(query));
+    return matchFilter && matchSearch;
+  });
+
+  const body = document.getElementById('list-body');
+  const empty = document.getElementById('list-empty');
+  const footer = document.getElementById('list-footer');
+
+  if (filtered.length === 0) {
+    empty.style.display = 'block';
+    // clear old items
+    [...body.children].forEach(c => { if (c !== empty) c.remove(); });
+    footer.textContent = '0 projekte';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Remove old items
+  [...body.children].forEach(c => { if (c !== empty) c.remove(); });
+
+  filtered.forEach(p => {
+    const taskDone = p.tasks.filter(t => t.done).length;
+    const meta = p.tasks.length
+      ? `${p.tasks.length} aufgaben · ${taskDone} erledigt`
+      : p.desc ? p.desc.slice(0, 40) + (p.desc.length > 40 ? '…' : '') : '—';
+
+    const div = document.createElement('div');
+    div.className = 'list-item' + (selectedId === p.id ? ' selected-item' : '');
+    div.innerHTML = `
+      <div class="list-dot" style="background:${STATUS_COLORS[p.status]}"></div>
+      <div class="list-item-info">
+        <div class="list-item-name">${escHtml(p.name)}</div>
+        <div class="list-item-meta">${escHtml(meta)}</div>
+      </div>
+      <button class="list-item-del" title="löschen" onclick="deleteFromList('${p.id}', event)">✕</button>
+    `;
+    div.addEventListener('click', () => {
+      closeListDrawer();
+      // fly to star
+      offsetX = W/2 - p.x;
+      offsetY = H/2 - p.y;
+      setTimeout(() => openPanel(p.id), 150);
+    });
+    body.insertBefore(div, empty);
+  });
+
+  footer.textContent = `${filtered.length} von ${projects.length} projekten`;
+}
+
+function deleteFromList(id, e) {
+  e.stopPropagation();
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`"${p.name}" löschen?`)) return;
+  projects = projects.filter(x => x.id !== id);
+  data.projects = projects;
+  if (currentProject && currentProject.id === id) closePanel();
+  saveData();
+  renderList();
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePanel(); closeModal(); closeListDrawer(); }
+  if (e.key === 'n' && !document.getElementById('modal-overlay').classList.contains('open') &&
+      document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    openModal();
+  }
+});
+
+// ─── SERVICE WORKER ───────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+window.addEventListener('resize', resize);
+resize();
+draw();
+</script>
+</body>
+</html>
